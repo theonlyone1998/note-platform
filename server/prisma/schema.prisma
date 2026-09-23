@@ -1,0 +1,82 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextIndex", "fullTextSearch"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  email     String     @unique
+  username  String
+  password  String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  isActive  Boolean    @default(true) @map("is_active")
+  role      String     @default("user")
+  notes     Note[]
+  notebooks Notebook[]
+  tags      Tag[]
+}
+
+model Notebook {
+  id        Int      @id @default(autoincrement())
+  name      String
+  userId    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notes     Note[]
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  name      String
+  color     String?   @default("#3B82F6")
+  userId    Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  notes     NoteTag[]
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model NoteTag {
+  noteId Int  @map("note_id")
+  tagId  Int  @map("tag_id")
+  note   Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@index([tagId], map: "NoteTag_tag_id_fkey")
+}
+
+model Note {
+  id          Int       @id @default(autoincrement())
+  title       String
+  content     String    @db.Text
+  userId      Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  contentType String    @default("markdown") @map("content_type")
+  deletedAt   DateTime? @map("deleted_at")
+  isDeleted   Boolean   @default(false) @map("is_deleted")
+  isDraft     Boolean   @default(false) @map("is_draft")
+  notebookId  Int?      @map("notebook_id")
+  notebook    Notebook? @relation(fields: [notebookId], references: [id])
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags        NoteTag[]
+
+  @@index([userId])
+  @@index([userId, isDeleted])
+  @@index([notebookId])
+  @@fulltext([title, content])
+}

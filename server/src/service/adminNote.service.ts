@@ -1,0 +1,163 @@
+import { delCache, getCache, getRedis, setCache } from '@/utils/redis'
+import { prisma } from '@/utils/prisma'
+
+interface ListNotesParams {
+  page?: number
+  pageSize?: number
+  keyword?: string
+  userId?: number
+  isDeleted?: boolean
+}
+
+function adminNotesCacheKey(params: Record<string, unknown>) {
+  const suffix = Object.entries(params)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v ?? 'all'}`)
+    .join(':')
+  return `admin:notes:${suffix}`
+}
+
+function adminNoteCacheKey(id: number) {
+  return `admin:note:${id}`
+}
+
+async function clearAdminNoteCache(noteId?: number) {
+  const redis = getRedis()
+  const stream = redis.scanStream({ match: 'admin:notes:*' })
+  const keysToDelete: string[] = []
+  stream.on('data', (keys: string[]) => {
+    if (keys.length) keysToDelete.push(...keys)
+  })
+  await new Promise<void>((resolve, reject) => {
+    stream.on('end', resolve)
+    stream.on('error', reject)
+  })
+  if (keysToDelete.length) await redis.del(...keysToDelete)
+  if (noteId) await delCache(adminNoteCacheKey(noteId))
+}
+
+export async function listNotes(params: ListNotesParams) {
+  const page = Math.max(1, params.page || 1)
+  const pageSize = Math.min(50, Math.max(1, params.pageSize || 10))
+  const cacheParams = {
+    page,
+    pageSize,
+    keyword: params.keyword || 'all',
+    userId: params.userId ?? 'all',
+    isDeleted: params.isDeleted ?? 'all'
+  }
+  const cacheKey = adminNotesCacheKey(cacheParams)
+  const cached = await getCache<{
+    items: any[]
+    total: number
+    page: number
+    pageSize: number
+  }>(cacheKey)
+  if (cached) return cached
+
+  const where: any = {}
+
+  if (params.keyword) {
+    where.OR = [
+      { title: { contains: params.keyword } },
+      { content: { contains: params.keyword } }
+    ]
+  }
+  if (params.userId) where.userId = params.userId
+  if (params.isDeleted !== undefined) where.isDeleted = params.isDeleted
+
+  const [items, total] = await Promise.all([
+    prisma.note.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        user: { select: { id: true, username: true, email: true } },
+        notebook: { select: { id: true, name: true } },
+        tags: { include: { tag: { select: { id: true, name: true, color: true } } } }
+      }
+    }),
+    prisma.note.count({ where })
+  ])
+
+  const result = { items, total, page, pageSize }
+  await setCache(cacheKey, result, 300)
+  return result
+}
+
+export async function getNoteById(id: number) {
+  const cacheKey = adminNoteCacheKey(id)
+  const cached = await getCache(cacheKey)
+  if (cached) return cached
+
+  const note = await prisma.note.findUnique({
+    where: { id },
+    include: {
+      user: { select: { id: true, username: true, email: true } },
+      notebook: { select: { id: true, name: true } },
+      tags: { include: { tag: { select: { id: true, name: true, color: true } } } }
+    }
+  })
+  if (!note) throw Object.assign(new Error('笔记不存在'), { status: 404 })
+  await setCache(cacheKey, note, 1800)
+  return note
+}
+
+export async function updateNote(id: number, data: { title?: string; content?: string; notebookId?: number | null; tagIds?: number[] }) {
+  const note = await prisma.note.findUnique({ where: { id } })
+  if (!note) throw Object.assign(new Error('笔记不存在'), { status: 404 })
+
+  const updateData: any = {}
+  if (data.title !== undefined) updateData.title = data.title
+  if (data.content !== undefined) updateData.content = data.content
+  if (data.notebookId !== undefined) updateData.notebookId = data.notebookId
+
+  if (data.tagIds !== undefined) {
+    updateData.tags = {
+      deleteMany: {},
+      create: data.tagIds.map((tagId) => ({ tag: { connect: { id: tagId } } }))
+    }
+  }
+
+  const updated = await prisma.note.update({
+    where: { id },
+    data: updateData,
+    include: {
+      user: { select: { id: true, username: true, email: true } },
+      notebook: { select: { id: true, name: true } },
+      tags: { include: { tag: { select: { id: true, name: true, color: true } } } }
+    }
+  })
+  await clearAdminNoteCache(id)
+  return updated
+}
+
+export async function toggleNoteTrash(id: number) {
+  const note = await prisma.note.findUnique({ where: { id } })
+  if (!note) throw Object.assign(new Error('笔记不存在'), { status: 404 })
+
+  const updated = await prisma.note.update({
+    where: { id },
+    data: {
+      isDeleted: !note.isDeleted,
+      deletedAt: note.isDeleted ? null : new Date()
+    },
+    include: {
+      user: { select: { id: true, username: true, email: true } },
+      notebook: { select: { id: true, name: true } },
+      tags: { include: { tag: { select: { id: true, name: true, color: true } } } }
+    }
+  })
+  await clearAdminNoteCache(id)
+  return updated
+}
+
+export async function hardDeleteNote(id: number) {
+  const note = await prisma.note.findUnique({ where: { id } })
+  if (!note) throw Object.assign(new Error('笔记不存在'), { status: 404 })
+
+  await prisma.note.delete({ where: { id } })
+  await clearAdminNoteCache(id)
+  return { id }
+}

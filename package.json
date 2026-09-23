@@ -1,0 +1,26 @@
+{
+  "name": "note-platform",
+  "version": "1.0.0",
+  "description": "个人笔记平台 - Monorepo 单仓库",
+  "private": true,
+  "scripts": {
+    "dev:client": "pnpm --filter client dev",
+    "dev:server": "pnpm --filter server dev",
+    "build:client": "pnpm --filter client build",
+    "build:server": "pnpm --filter server build",
+    "start:server": "pnpm --filter server start",
+    "migrate:dev": "pnpm --filter server migrate:dev",
+    "migrate:deploy": "pnpm --filter server migrate:deploy",
+    "studio": "pnpm --filter server studio",
+    "lint": "pnpm -r lint",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

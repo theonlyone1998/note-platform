@@ -1,0 +1,13 @@
+{
+  "name": "@note-platform/shared",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/types/index.ts",
+  "types": "./src/types/index.ts",
+  "scripts": {
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
