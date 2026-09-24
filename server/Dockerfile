@@ -1,7 +1,12 @@
 FROM node:20-slim
 
 # Prisma 迁移需要 OpenSSL 支持
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# 国内服务器将 Debian 源切换为阿里云镜像，避免 DNS 或网络不稳定导致 apt 失败
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
+    && sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y openssl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
