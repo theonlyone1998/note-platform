@@ -33,8 +33,9 @@ pnpm-debug.log*
 *.sqlite3
 
 # Prisma
-server/prisma/migrations/
 server/prisma/*.db
+server/prisma/dev.db
+server/prisma/migrations/migration_lock.toml
 
 # Docker volumes
 docker-volumes/

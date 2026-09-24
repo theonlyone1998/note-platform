@@ -1,5 +1,8 @@
 FROM node:20-slim
 
+# Prisma 迁移需要 OpenSSL 支持
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 RUN npm install -g pnpm

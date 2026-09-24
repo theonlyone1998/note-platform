@@ -1,9 +1,46 @@
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: note-platform-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: note_platform
+      MYSQL_USER: note_user
+      MYSQL_PASSWORD: note_pass
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - ./docker-volumes/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123456"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password
+
   redis:
     image: redis:7-alpine
     container_name: note-platform-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - ./docker-volumes/redis:/data
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: note-platform-server
+    restart: unless-stopped
+    env_file:
+      - ./server/.env.production
+    network_mode: host
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+# server 使用 host 网络模式，因此 127.0.0.1:3306 / 127.0.0.1:6379 / 127.0.0.1:3000
+# 都直接映射到宿主机，与 server/.env.production 中的连接字符串保持一致。

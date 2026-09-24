@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # 纸间笔记平台 - 宝塔面板 HTTP 单机一键部署脚本（无域名临时方案）
 # 前置要求：
-#   1. 宝塔面板已安装 Nginx、MySQL
+#   1. 宝塔面板已安装 Nginx
 #   2. 项目代码在 /www/wwwroot/note-platform
-#   3. 已配置 server/.env
+#   3. 已配置 server/.env.production
 #
 # 使用方法：
 #   chmod +x deploy.sh
@@ -20,32 +20,28 @@ NGINX_CONF_DST="/www/server/panel/vhost/nginx/note-platform.conf"
 # --- 脚本正文 ---
 cd "${PROJECT_DIR}"
 
-echo "[1/5] 安装依赖..."
+echo "[1/6] 拉取最新代码..."
+git pull || true
+
+echo "[2/6] 安装依赖..."
 pnpm install
 
-echo "[2/5] 构建前端..."
+echo "[3/6] 构建前端..."
 rm -f "${CLIENT_DIST}/.user.ini"
 pnpm build:client
 
-echo "[3/5] 构建后端 Docker 镜像..."
-docker build -t note-platform-server -f server/Dockerfile .
+echo "[4/6] 构建并启动 MySQL、Redis、后端服务..."
+docker compose down server 2>/dev/null || true
+docker compose up -d --build server
 
-echo "[4/5] 启动 Redis..."
-docker compose up -d redis || true
+echo "[5/6] 等待 MySQL 就绪..."
+docker compose exec mysql mysqladmin ping -h localhost -uroot -proot123456 --silent || {
+  echo "MySQL 未就绪，等待 10 秒后重试..."
+  sleep 10
+  docker compose exec mysql mysqladmin ping -h localhost -uroot -proot123456 --silent
+}
 
-echo "[5/5] 启动后端服务容器..."
-docker stop note-platform-server 2>/dev/null || true
-docker rm note-platform-server 2>/dev/null || true
-
-docker run -d \
-  --name note-platform-server \
-  --network host \
-  -p 127.0.0.1:3000:3000 \
-  --env-file "${PROJECT_DIR}/server/.env.production" \
-  --restart unless-stopped \
-  note-platform-server
-
-echo "[5/5] 部署 Nginx 配置..."
+echo "[6/6] 部署 Nginx 配置..."
 cp "${NGINX_CONF_SRC}" "${NGINX_CONF_DST}"
 rm -f /etc/nginx/conf.d/default.conf 2>/dev/null || true
 
