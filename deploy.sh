@@ -31,8 +31,8 @@ rm -f "${CLIENT_DIST}/.user.ini"
 pnpm build:client
 
 echo "[4/6] 构建并启动 MySQL、Redis、后端服务..."
-docker compose down server 2>/dev/null || true
-docker compose up -d --build server
+docker compose down 2>/dev/null || true
+docker compose up -d --build
 
 echo "[5/6] 等待 MySQL 就绪..."
 docker compose exec mysql mysqladmin ping -h localhost -uroot -proot123456 --silent || {
@@ -50,6 +50,5 @@ rm -f /etc/nginx/conf.d/default.conf 2>/dev/null || true
 
 echo ""
 echo "部署完成！"
-echo "访问地址: http://你的服务器IP"
-echo "后端 API: http://你的服务器IP/api"
-echo "健康检查: curl http://你的服务器IP/api/health"
+echo "访问地址: http://123.207.233.238"
+echo "健康检查: curl http://123.207.233.238/api/health"

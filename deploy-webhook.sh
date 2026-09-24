@@ -60,8 +60,8 @@ fi
 # 6. 启动 MySQL、Redis、后端服务
 # server 服务会自动重新构建镜像
 echo "启动容器服务"
-docker compose down server 2>/dev/null || true
-docker compose up -d --build server
+docker compose down 2>/dev/null || true
+docker compose up -d --build
 
 # 7. 等待 MySQL 就绪
 echo "等待 MySQL 就绪..."
