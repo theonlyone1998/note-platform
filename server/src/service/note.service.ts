@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
-import { delCache, getCache, getRedis, setCache } from '@/utils/redis'
+import { getCache, setCache } from '@/utils/redis'
 import { prisma } from '@/utils/prisma'
+import { clearNoteCache, noteCacheKey, noteDetailCacheKey } from './cache.service'
 import type { CreateNoteDto, UpdateNoteDto } from '@/types'
 import type { Note, Tag } from '@shared/types'
 
@@ -32,34 +33,6 @@ function normalizePagination(page?: number, pageSize?: number) {
   const p = Math.max(1, page || 1)
   const ps = Math.min(100, Math.max(1, pageSize || DEFAULT_PAGE_SIZE))
   return { page: p, pageSize: ps }
-}
-
-function noteCacheKey(userId: number, options: Record<string, unknown> = {}) {
-  const suffix = Object.entries(options)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v ?? 'null'}`)
-    .join(':')
-  return suffix ? `notes:${userId}:${suffix}` : `notes:${userId}`
-}
-
-function noteDetailCacheKey(id: number) {
-  return `note:${id}`
-}
-
-export async function clearNoteCache(userId: number, noteId?: number) {
-  const redis = getRedis()
-  const stream = redis.scanStream({ match: `notes:${userId}:*` })
-  const keysToDelete: string[] = []
-  stream.on('data', (keys: string[]) => {
-    if (keys.length) keysToDelete.push(...keys)
-  })
-  await new Promise<void>((resolve, reject) => {
-    stream.on('end', resolve)
-    stream.on('error', reject)
-  })
-  if (keysToDelete.length) await redis.del(...keysToDelete)
-  await delCache(noteCacheKey(userId))
-  if (noteId) await delCache(noteDetailCacheKey(noteId))
 }
 
 async function ensureTags(userId: number, tagIds?: number[]): Promise<number[]> {

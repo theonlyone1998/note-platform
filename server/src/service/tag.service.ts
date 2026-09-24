@@ -1,6 +1,6 @@
 import { delCache, getCache, setCache } from '@/utils/redis'
 import { prisma } from '@/utils/prisma'
-import { clearNoteCache } from './note.service'
+import { clearNoteCache } from './cache.service'
 import type { Tag } from '@shared/types'
 
 function tagCacheKey(userId: number) {

@@ -1,5 +1,6 @@
-import { delCache, getCache, getRedis, setCache } from '@/utils/redis'
+import { getCache, setCache } from '@/utils/redis'
 import { prisma } from '@/utils/prisma'
+import { clearAdminNoteCache, adminNoteCacheKey, adminNotesCacheKey } from './cache.service'
 
 interface ListNotesParams {
   page?: number
@@ -7,33 +8,6 @@ interface ListNotesParams {
   keyword?: string
   userId?: number
   isDeleted?: boolean
-}
-
-function adminNotesCacheKey(params: Record<string, unknown>) {
-  const suffix = Object.entries(params)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v ?? 'all'}`)
-    .join(':')
-  return `admin:notes:${suffix}`
-}
-
-function adminNoteCacheKey(id: number) {
-  return `admin:note:${id}`
-}
-
-async function clearAdminNoteCache(noteId?: number) {
-  const redis = getRedis()
-  const stream = redis.scanStream({ match: 'admin:notes:*' })
-  const keysToDelete: string[] = []
-  stream.on('data', (keys: string[]) => {
-    if (keys.length) keysToDelete.push(...keys)
-  })
-  await new Promise<void>((resolve, reject) => {
-    stream.on('end', resolve)
-    stream.on('error', reject)
-  })
-  if (keysToDelete.length) await redis.del(...keysToDelete)
-  if (noteId) await delCache(adminNoteCacheKey(noteId))
 }
 
 export async function listNotes(params: ListNotesParams) {
@@ -129,7 +103,7 @@ export async function updateNote(id: number, data: { title?: string; content?: s
       tags: { include: { tag: { select: { id: true, name: true, color: true } } } }
     }
   })
-  await clearAdminNoteCache(id)
+  await clearAdminNoteCache(id, note.userId)
   return updated
 }
 
@@ -149,7 +123,7 @@ export async function toggleNoteTrash(id: number) {
       tags: { include: { tag: { select: { id: true, name: true, color: true } } } }
     }
   })
-  await clearAdminNoteCache(id)
+  await clearAdminNoteCache(id, note.userId)
   return updated
 }
 
@@ -158,6 +132,6 @@ export async function hardDeleteNote(id: number) {
   if (!note) throw Object.assign(new Error('笔记不存在'), { status: 404 })
 
   await prisma.note.delete({ where: { id } })
-  await clearAdminNoteCache(id)
+  await clearAdminNoteCache(id, note.userId)
   return { id }
 }
