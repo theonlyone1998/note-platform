@@ -16,15 +16,6 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/client",
-      "@prisma/engines",
-      "esbuild",
-      "prisma",
-      "vue-demi"
-    ]
-  },
   "devDependencies": {
     "typescript": "^5.3.3"
   },
